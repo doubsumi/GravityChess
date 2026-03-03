@@ -4,6 +4,20 @@ from typing import Dict, List, Optional
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
+import random
+import asyncio
+
+# 导入 AI 引擎
+try:
+    from backend.ai_engine import (
+        get_ai_move, check_winner, is_board_full, get_next_empty_row,
+        AI_PLAYER, update_win_streak, reset_win_streak
+    )
+except ImportError:
+    from ai_engine import (
+        get_ai_move, check_winner, is_board_full, get_next_empty_row,
+        AI_PLAYER, update_win_streak, reset_win_streak
+    )
 
 app = FastAPI()
 
@@ -30,6 +44,8 @@ class Player:
     color: str
     status: PlayerStatus = PlayerStatus.WAITING
     websocket: Optional[WebSocket] = None
+    is_ai: bool = False
+    difficulty: str = "medium"
 
 
 @dataclass
@@ -58,93 +74,6 @@ def get_player_color(player_index: int) -> str:
     return "#FF69B4" if player_index == 0 else "#87CEEB"
 
 
-def check_winner(board, last_move) -> Optional[int]:
-    if not last_move:
-        return None
-    
-    x, y = last_move
-    player = board[y][x]
-    if player == 0:
-        return None
-
-    # 水平方向
-    count = 1
-    for i in range(1, 4):
-        if x + i < 5 and board[y][x + i] == player:
-            count += 1
-        else:
-            break
-    for i in range(1, 4):
-        if x - i >= 0 and board[y][x - i] == player:
-            count += 1
-        else:
-            break
-    if count >= 4:
-        return player
-
-    # 垂直方向
-    count = 1
-    for i in range(1, 4):
-        if y + i < 5 and board[y + i][x] == player:
-            count += 1
-        else:
-            break
-    for i in range(1, 4):
-        if y - i >= 0 and board[y - i][x] == player:
-            count += 1
-        else:
-            break
-    if count >= 4:
-        return player
-
-    # 对角线方向（左上到右下）
-    count = 1
-    for i in range(1, 4):
-        if x + i < 5 and y + i < 5 and board[y + i][x + i] == player:
-            count += 1
-        else:
-            break
-    for i in range(1, 4):
-        if x - i >= 0 and y - i >= 0 and board[y - i][x - i] == player:
-            count += 1
-        else:
-            break
-    if count >= 4:
-        return player
-
-    # 对角线方向（右上到左下）
-    count = 1
-    for i in range(1, 4):
-        if x - i >= 0 and y + i < 5 and board[y + i][x - i] == player:
-            count += 1
-        else:
-            break
-    for i in range(1, 4):
-        if x + i < 5 and y - i >= 0 and board[y - i][x + i] == player:
-            count += 1
-        else:
-            break
-    if count >= 4:
-        return player
-
-    return None
-
-
-def is_board_full(board) -> bool:
-    for row in board:
-        for cell in row:
-            if cell == 0:
-                return False
-    return True
-
-
-def get_next_empty_row(board, col) -> Optional[int]:
-    for i in range(4, -1, -1):
-        if board[i][col] == 0:
-            return i
-    return None
-
-
 async def broadcast_to_room(room_id: str, message: dict):
     if room_id in rooms:
         room = rooms[room_id]
@@ -171,13 +100,17 @@ def get_room_state(room_id: str) -> dict:
     room = rooms[room_id]
     players_data = []
     for i, player in enumerate(room.players):
-        players_data.append({
+        player_data = {
             "id": player.id,
             "name": player.name,
             "color": player.color,
             "status": player.status.value,
+            "is_ai": player.is_ai,
             "is_current_turn": i == room.current_turn and room.game_status == "playing"
-        })
+        }
+        if player.is_ai:
+            player_data["difficulty"] = player.difficulty
+        players_data.append(player_data)
     
     return {
         "room_id": room.id,
@@ -187,6 +120,76 @@ def get_room_state(room_id: str) -> dict:
         "game_status": room.game_status,
         "winner": room.winner
     }
+
+
+async def ai_make_move(room_id):
+    """AI makes a move"""
+    if room_id not in rooms:
+        return
+    
+    room = rooms[room_id]
+    
+    # Check if it's AI's turn
+    ai_player = None
+    for i, player in enumerate(room.players):
+        if player.is_ai and i == room.current_turn:
+            ai_player = player
+            break
+    
+    if not ai_player or room.game_status != "playing":
+        return
+    
+    # Simulate thinking delay
+    await asyncio.sleep(random.uniform(0.5, 1.5))
+    
+    # Get AI move with difficulty
+    difficulty = getattr(ai_player, 'difficulty', 'medium')
+    move = get_ai_move(room.board, room_id, difficulty)
+    if move is None:
+        return
+    
+    # Execute move
+    y = get_next_empty_row(room.board, move)
+    if y is None:
+        return
+    
+    x = move
+    player_num = AI_PLAYER
+    room.board[y][x] = player_num
+    
+    # Check winner
+    winner = check_winner(room.board, (x, y))
+    
+    if winner:
+        room.game_status = "ended"
+        room.winner = winner
+        update_win_streak(room_id, winner)
+        await broadcast_to_room(room_id, {
+            "type": "game_over",
+            "winner": winner,
+            "room_state": get_room_state(room_id)
+        })
+    elif is_board_full(room.board):
+        room.game_status = "ended"
+        room.winner = 0
+        await broadcast_to_room(room_id, {
+            "type": "game_over",
+            "winner": 0,
+            "room_state": get_room_state(room_id)
+        })
+    else:
+        room.current_turn = 1 - room.current_turn
+        await broadcast_to_room(room_id, {
+            "type": "piece_placed",
+            "position": {"x": x, "y": y},
+            "player": player_num,
+            "next_turn": room.current_turn,
+            "room_state": get_room_state(room_id)
+        })
+        
+        # Check if next turn is also AI (should not happen)
+        if room.current_turn < len(room.players) and room.players[room.current_turn].is_ai:
+            await ai_make_move(room_id)
 
 
 @app.websocket("/ws/{room_id}/{player_name}")
@@ -276,6 +279,55 @@ async def handle_message(room_id: str, player_id: str, data: dict):
             })
         return
 
+    if message_type == "add_ai_player":
+        # Check if room already has 2 players
+        playing_players = [p for p in room.players if p.status != PlayerStatus.WATCHING and p.status != PlayerStatus.DISCONNECTED]
+        if len(playing_players) >= 2:
+            return
+        
+        # Get difficulty from message
+        difficulty = data.get("difficulty", "medium")
+        difficulty_names = {
+            "easy": "电脑(简单)",
+            "medium": "电脑(中等)",
+            "hard": "电脑(困难)"
+        }
+        
+        # Create AI player
+        ai_id = f"AI_{str(uuid.uuid4())[:4]}"
+        ai_player = Player(
+            id=ai_id,
+            name=difficulty_names.get(difficulty, "电脑"),
+            color=get_player_color(len(playing_players)),
+            status=PlayerStatus.PLAYING,
+            is_ai=True
+        )
+        ai_player.difficulty = difficulty  # Store difficulty
+        room.players.append(ai_player)
+        
+        # Start game if 2 players
+        if len(room.players) == 2:
+            room.game_status = "playing"
+            room.current_turn = 0
+        
+        await broadcast_to_room(room_id, {
+            "type": "ai_player_added",
+            "player": {
+                "id": ai_player.id,
+                "name": ai_player.name,
+                "color": ai_player.color,
+                "status": ai_player.status.value,
+                "is_ai": ai_player.is_ai,
+                "difficulty": difficulty
+            },
+            "room_state": get_room_state(room_id)
+        })
+        
+        # Check if AI should move first (should not happen since AI is always second)
+        if room.current_turn < len(room.players) and room.players[room.current_turn].is_ai:
+            await ai_make_move(room_id)
+        return
+
     if message_type == "place_piece":
         if room.game_status != "playing":
             return
@@ -309,6 +361,7 @@ async def handle_message(room_id: str, player_id: str, data: dict):
         if winner:
             room.game_status = "ended"
             room.winner = winner
+            update_win_streak(room_id, winner)
             await broadcast_to_room(room_id, {
                 "type": "game_over",
                 "winner": winner,
@@ -331,6 +384,10 @@ async def handle_message(room_id: str, player_id: str, data: dict):
                 "next_turn": room.current_turn,
                 "room_state": get_room_state(room_id)
             })
+            
+            # Check if next turn is AI
+            if room.current_turn < len(room.players) and room.players[room.current_turn].is_ai:
+                await ai_make_move(room_id)
 
     elif message_type == "restart_game":
         playing_players = [p for p in room.players if p.status != PlayerStatus.WATCHING]
@@ -339,11 +396,16 @@ async def handle_message(room_id: str, player_id: str, data: dict):
             room.current_turn = 0
             room.game_status = "playing"
             room.winner = None
+            reset_win_streak(room_id)
             
             await broadcast_to_room(room_id, {
                 "type": "game_restarted",
                 "room_state": get_room_state(room_id)
             })
+            
+            # Check if first turn is AI
+            if room.current_turn < len(room.players) and room.players[room.current_turn].is_ai:
+                await ai_make_move(room_id)
 
 
 async def handle_disconnect(room_id: str, player_id: str):
