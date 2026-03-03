@@ -1,0 +1,26 @@
+{
+  "name": "重力四子棋",
+  "short_name": "重力四子棋",
+  "description": "一个有趣的重力四子棋在线对战游戏",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#263238",
+  "theme_color": "#263238",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/apple-touch-icon.svg",
+      "sizes": "180x180",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "entertainment"],
+  "lang": "zh-CN"
+}

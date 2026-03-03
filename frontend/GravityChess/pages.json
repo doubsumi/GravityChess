@@ -1,0 +1,23 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "重力四子棋",
+				"navigationBarBackgroundColor": "#263238",
+				"navigationBarTextStyle": "white",
+				"navigationStyle": "custom"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "white",
+		"navigationBarTitleText": "重力四子棋",
+		"navigationBarBackgroundColor": "#263238",
+		"backgroundColor": "#263238",
+		"navigationBarTitleTextStyle": {
+			"fontSize": "28px"
+		}
+	},
+	"uniIdRouter": {}
+}
