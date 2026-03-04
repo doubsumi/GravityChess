@@ -442,6 +442,34 @@ async def root():
     return {"message": "Gravity Chess API"}
 
 
+@app.get("/rooms")
+async def get_rooms():
+    room_list = []
+    for room_id, room in rooms.items():
+        room_info = {
+            "room_id": room_id,
+            "players": [
+                {
+                    "id": p.id,
+                    "name": p.name,
+                    "color": p.color,
+                    "status": p.status.value,
+                    "is_ai": p.is_ai
+                }
+                for p in room.players
+            ],
+            "player_count": len(room.players),
+            "game_status": room.game_status,
+            "current_turn": room.current_turn
+        }
+        room_list.append(room_info)
+    
+    return {
+        "total_rooms": len(rooms),
+        "rooms": room_list
+    }
+
+
 @app.get("/room/{room_id}")
 async def get_room(room_id: str):
     if room_id not in rooms:
