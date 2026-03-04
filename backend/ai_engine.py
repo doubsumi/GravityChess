@@ -158,7 +158,7 @@ def evaluate_line(line: List[int]) -> int:
     if ai_count == 2 and empty_count == 2:
         return SCORE_TABLE['TWO_OPEN']
     if human_count == 2 and empty_count == 2:
-        return -SCORE_TABLE['TWO_OPEN']
+        return -SCORE_TABLE['BLOCK_WIN'] # 阻止对手2连权重提高，避免出现开局必胜走法
     
     return 0
 
