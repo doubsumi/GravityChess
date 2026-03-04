@@ -45,12 +45,12 @@
 
                     <view class="board-wrapper">
                         <view class="board">
-                            <view class="row" v-for="(row, y) in displayBoard" :key="y">
+                            <view class="row" v-for="(row, y) in displayBoard" :key="y" :style="{ gap: getGap() + 'rpx' }">
                                 <view class="cell" v-for="(cell, x) in row" :key="x" :class="{ 
-										'player1': cell === 1, 
-										'player2': cell === 2,
-										'last-move': isLastMove(x, y)
-									}" :style="{ backgroundColor: getCellColor(cell) }" @click="handleCellClick(x, y)">
+									'player1': cell === 1, 
+									'player2': cell === 2,
+									'last-move': isLastMove(x, y)
+								}" :style="{ width: getCellSize() + 'rpx', height: getCellSize() + 'rpx', backgroundColor: getCellColor(cell) }" @click="handleCellClick(x, y)">
                                     <view v-if="cell !== 0" class="piece-inner"></view>
                                 </view>
                             </view>
@@ -407,38 +407,60 @@
                     if (res[0]) {
                         const boardTop = res[0].top
                         const boardLeft = res[0].left
-                        // 从点击处的格子位置开始
-                        const startTop = boardTop + 8 // 从棋盘顶部开始
+                        
+                        // 计算点击位置的格子实际位置（初始位置）
+                        const cellLeft = boardLeft + 8 + x * (cellSize + gap)
+                        // 初始位置就是点击位置（棋盘顶部）
+                        const startTop = boardTop + 8
+                        // 最终位置是落到底部的位置
                         const endTop = boardTop + 8 + finalY * (cellSize + gap)
-                        const left = boardLeft + 8 + x * (cellSize + gap)
 
-                        // 初始位置（点击处）
+                        // 初始位置样式：点击位置，格子大小
                         this.animatingPieceStyle = {
-                            left: `${left}px`,
+                            left: `${cellLeft}px`,
                             top: `${startTop}px`,
                             backgroundColor: pieceColor,
                             width: `${cellSize}px`,
                             height: `${cellSize}px`,
-                            transition: 'none',
                             position: 'fixed',
-                            zIndex: 9999
+                            zIndex: 9999,
+                            borderRadius: '8rpx',
+                            boxShadow: `0 5px 15px rgba(0,0,0,0.3)`
                         }
 
                         // 确保样式先应用
                         this.$nextTick(() => {
-                            requestAnimationFrame(() => {
-                                // 重力下落效果，使用更自然的缓动函数，动画更慢
-                                this.animatingPieceStyle = {
-                                    ...this.animatingPieceStyle,
-                                    top: `${endTop}px`,
-                                    transition: 'top 1.2s cubic-bezier(0.25, 0.1, 0.25, 1.0)'
-                                }
+                            // 使用uni-app的动画API，创建自由落体效果
+                            const animation = uni.createAnimation()
 
-                                // 等待动画完成后再清除
-                                setTimeout(() => {
-                                    this.animatingPiece = null
-                                }, 1200)
+                            // 定义下落动画，模拟重力效果
+                            animation.translateY(endTop - startTop).step({ 
+                                duration: 1200, 
+                                timingFunction: 'cubic-bezier(0.2, 0.8, 0.2, 1.0)' // 模拟重力的缓动函数
                             })
+                            
+                            // 添加轻微的弹跳效果
+                            animation.translateY(endTop - startTop - 5).step({ 
+                                duration: 150, 
+                                timingFunction: 'ease-out' 
+                            })
+                            
+                            // 回到最终位置
+                            animation.translateY(endTop - startTop).step({ 
+                                duration: 150, 
+                                timingFunction: 'ease-in' 
+                            })
+
+                            // 导出动画数据
+                            this.animatingPieceStyle = {
+                                ...this.animatingPieceStyle,
+                                animation: animation.export()
+                            }
+
+                            // 等待动画完成后再清除
+                            setTimeout(() => {
+                                this.animatingPiece = null
+                            }, 1500)
                         })
                     }
                 })
@@ -451,10 +473,11 @@
                 const isLandscape = windowWidth > windowHeight
                 const isDesktop = windowWidth >= 1024
 
-                // 桌面端更大的棋盘
+                // 桌面端更大的棋盘，1080P及以上屏幕棋盘大小为600px*600px
                 if (isDesktop) {
-                    if (windowWidth <= 1200) return 110
-                    return 120
+                    // 600px棋盘，5x5格子，每个格子大小 = 600 / 5 = 120px
+                    // 考虑间隙，每个格子实际大小为112px，间隙为8px
+                    return 112
                 }
 
                 // 移动端横屏和小屏幕平板
@@ -1001,8 +1024,6 @@
     }
 
     .cell {
-        width: 55rpx;
-        height: 55rpx;
         border-radius: 8rpx;
         display: flex;
         align-items: center;
