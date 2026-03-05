@@ -93,6 +93,25 @@ async def send_to_player(player_id: str, message: dict):
             pass
 
 
+def destroy_room(room_id: str):
+    """销毁房间，清理资源"""
+    if room_id in rooms:
+        room = rooms[room_id]
+        for player in room.players:
+            if player.id in player_connections:
+                del player_connections[player.id]
+        del rooms[room_id]
+        print(f"Room {room_id} has been destroyed")
+
+
+def has_active_human_players(room: Room) -> bool:
+    """检查房间是否还有活跃的人类玩家（非AI）"""
+    for player in room.players:
+        if not player.is_ai and player.status != PlayerStatus.DISCONNECTED:
+            return True
+    return False
+
+
 def get_room_state(room_id: str) -> dict:
     if room_id not in rooms:
         return {}
@@ -435,6 +454,9 @@ async def handle_disconnect(room_id: str, player_id: str):
             playing_players = [p for p in room.players if p.status != PlayerStatus.WATCHING and p.status != PlayerStatus.DISCONNECTED]
             if len(playing_players) < 2:
                 room.game_status = "waiting"
+        
+        if not has_active_human_players(room):
+            destroy_room(room_id)
 
 
 @app.get("/")
