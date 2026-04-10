@@ -247,8 +247,8 @@
 			},
 
 			connectWebSocket(roomId, defaultName) {
-				// 使用wss协议，本地调试时将域名替换localhost
-				// const wsUrl = `wss://yourdomain.com/ws/${roomId}/${defaultName}`
+				// 使用wss协议，域名替换localhost
+				// const wsUrl = `wss://siziqi.notos.space/ws/${roomId}/${defaultName}`
 				const wsUrl = `ws://localhost:8000/ws/${roomId}/${defaultName}`
 
 				uni.connectSocket({
@@ -620,14 +620,11 @@
 
 			async handleCellClick(x, y) {
 				// 点击格子 (x, y)
-				if (this.gameStatus !== 'playing') {
-				    uni.showToast({ title: '游戏未开始，可添加人机或邀请玩家！', icon: 'none' });
-				    return;
-				}
+				if (this.isWatching || this.gameStatus !== 'playing') return
 				if (this.currentTurn !== this.getMyPlayerNum() - 1) return
 				if (this.isAnimating || this.isLocalPlacing) {
 					uni.showToast({
-						title: '棋子下落中，请稍后',
+						title: '动画播放中，请稍后',
 						icon: 'none'
 					})
 					return
@@ -672,10 +669,7 @@
 				setTimeout(() => {
 					if (this.isLocalPlacing) {
 						this.isLocalPlacing = false
-						uni.showToast({
-							title: '落子超时，重置本地标志',
-							icon: 'none'
-						})
+						console.warn('落子超时，重置本地标志')
 					}
 				}, 5000)
 			},
@@ -784,7 +778,7 @@
 			},
 
 			shareGame() {
-				const shareUrl = `https://yourdomain.com/?room=${this.roomId}`
+				const shareUrl = `https://siziqi.notos.space/?room=${this.roomId}`
 				const shareTitle = '重力四子棋 - 快来挑战我吧！'
 				const shareDesc = `房间号：${this.roomId}，点击加入游戏！`
 
@@ -875,7 +869,8 @@
 		}
 	}
 </script>
-<style lang="scss">
+
+<style>
 	* {
 		box-sizing: border-box;
 		margin: 0;
@@ -1238,71 +1233,54 @@
 		gap: 6rpx;
 	}
 
-	/* 现代化棋子样式 */
 	.cell {
-		border-radius: 16rpx;
+		border-radius: 12rpx;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		cursor: pointer;
-		transition: all 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1);
-		background: rgba(255, 255, 255, 0.08);
-		backdrop-filter: blur(2px);
-		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-
-		&:hover {
-			transform: scale(1.03);
-			background: rgba(255, 255, 255, 0.15);
-			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-		}
-
-		.piece-inner {
-			width: 65%;
-			height: 65%;
-			background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.1));
-			border-radius: 50%;
-			box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.8), 0 1px 2px rgba(0, 0, 0, 0.2);
-			transition: all 0.2s;
-		}
-
-		&.player1 {
-			background: linear-gradient(145deg, #FF9ACD, #FF6BB5);
-			box-shadow: 0 6px 12px rgba(255, 105, 180, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.6);
-			border: 1px solid rgba(255, 255, 255, 0.3);
-
-			.piece-inner {
-				background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.9), rgba(255, 200, 220, 0.3));
-			}
-		}
-
-		&.player2 {
-			background: linear-gradient(145deg, #A0D8FF, #6BB5FF);
-			box-shadow: 0 6px 12px rgba(100, 150, 255, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.6);
-			border: 1px solid rgba(255, 255, 255, 0.3);
-
-			.piece-inner {
-				background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.9), rgba(180, 220, 255, 0.3));
-			}
-		}
-
-		&.last-move {
-			box-shadow: 0 0 0 3px #FFD966, 0 8px 16px rgba(0, 0, 0, 0.3);
-			animation: gentle-pulse 0.6s ease-out;
-		}
+		transition: all 0.2s ease;
+		background-color: rgba(255, 255, 255, 0.1);
+		box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.2);
 	}
 
-	@keyframes gentle-pulse {
-		0% {
-			box-shadow: 0 0 0 0 rgba(255, 217, 102, 0.7), 0 6px 12px rgba(0, 0, 0, 0.3);
-		}
+	.cell:hover {
+		transform: scale(1.02);
+		background-color: rgba(255, 255, 255, 0.2);
+	}
 
-		70% {
-			box-shadow: 0 0 0 8px rgba(255, 217, 102, 0), 0 6px 12px rgba(0, 0, 0, 0.3);
+	/* 棋子样式 - 立体方块效果 */
+	.cell.player1 {
+		background: linear-gradient(145deg, #FF69B4, #FF1493);
+		box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.4);
+	}
+
+	.cell.player2 {
+		background: linear-gradient(145deg, #87CEEB, #5CADD6);
+		box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.4);
+	}
+
+	.cell.last-move {
+		box-shadow: 0 0 0 3px #FFD700, 0 4px 12px rgba(0, 0, 0, 0.3);
+		animation: pulse-glow 0.5s ease;
+	}
+
+	@keyframes pulse-glow {
+		0% {
+			box-shadow: 0 0 0 0 #FFD700;
 		}
 
 		100% {
-			box-shadow: 0 0 0 0 rgba(255, 217, 102, 0), 0 6px 12px rgba(0, 0, 0, 0.3);
+			box-shadow: 0 0 0 6px rgba(255, 215, 0, 0);
 		}
+	}
+
+	.piece-inner {
+		width: 60%;
+		height: 60%;
+		background-color: rgba(255, 255, 255, 0.25);
+		border-radius: 50%;
+		box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.8);
 	}
 
 	.result-overlay {
