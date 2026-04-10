@@ -247,8 +247,8 @@
 			},
 
 			connectWebSocket(roomId, defaultName) {
-				// 使用wss协议，域名替换localhost
-				// const wsUrl = `wss://siziqi.notos.space/ws/${roomId}/${defaultName}`
+				// 使用wss协议，本地调试时将域名替换为localhost
+				// const wsUrl = `wss://yourdomain.com/ws/${roomId}/${defaultName}`
 				const wsUrl = `ws://localhost:8000/ws/${roomId}/${defaultName}`
 
 				uni.connectSocket({
@@ -778,7 +778,7 @@
 			},
 
 			shareGame() {
-				const shareUrl = `https://siziqi.notos.space/?room=${this.roomId}`
+				const shareUrl = `https://yourdomain.com/?room=${this.roomId}`
 				const shareTitle = '重力四子棋 - 快来挑战我吧！'
 				const shareDesc = `房间号：${this.roomId}，点击加入游戏！`
 
