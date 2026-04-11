@@ -228,12 +228,21 @@
 
             getRoomFromUrl() {
                 // #ifdef H5
-                const urlParams = new URLSearchParams(window.location.search)
-                return urlParams.get('room')
-                // #endif
+                // 优先从 window.location.search 获取
+                let params = new URLSearchParams(window.location.search);
+                let room = params.get('room');
+                if (room) return room;
 
+                // 兼容 hash 模式: 例如 /#/?room=XXX
+                const hash = window.location.hash;
+                if (hash && hash.includes('?room=')) {
+                    const hashParams = new URLSearchParams(hash.split('?')[1]);
+                    return hashParams.get('room');
+                }
+                return null;
+                // #endif
                 // #ifndef H5
-                return null
+                return null;
                 // #endif
             },
 
@@ -248,8 +257,8 @@
 
             connectWebSocket(roomId, defaultName) {
                 // 使用wss协议，本地调试时将域名替换为localhost
-				// const wsUrl = `wss://yourdomain.com/ws/${roomId}/${defaultName}`
-				const wsUrl = `ws://localhost:8000/ws/${roomId}/${defaultName}`
+                // const wsUrl = `wss://yourdomain.com/ws/${roomId}/${defaultName}`
+                const wsUrl = `ws://localhost:8000/ws/${roomId}/${defaultName}`
 
                 uni.connectSocket({
                     url: wsUrl
@@ -310,11 +319,14 @@
                             const column = data.position.x;
                             const targetRow = data.position.y;
                             const newBoard = data.room_state.board;
+                            const expectedStatus = this.gameStatus;
                             this.playDropAnimationForRemote(column, targetRow, newBoard).then(() => {
-                                this.board = newBoard;
-                                this.currentTurn = data.next_turn;
-                                this.lastMove = data.position;
-                                this.updateRoomState(data.room_state);
+                                if (this.gameStatus === expectedStatus && !this.winner) {
+                                    this.board = newBoard;
+                                    this.currentTurn = data.next_turn;
+                                    this.lastMove = data.position;
+                                    this.updateRoomState(data.room_state);
+                                }
                             });
                         }
                         break;
@@ -327,14 +339,26 @@
                         this.updateRoomState(data.room_state)
                         break
                     case 'game_restarted':
-                        this.board = data.room_state.board
-                        this.currentTurn = data.room_state.current_turn
-                        this.gameStatus = 'playing'
-                        this.winner = null
-                        this.lastMove = null
-                        this.animatingPiece = null
-                        this.isLocalPlacing = false
-                        break
+                        // 强制取消任何正在播放的动画
+                        if (this.animFrameId) {
+                            cancelAnimationFrame(this.animFrameId);
+                            this.animFrameId = null;
+                        }
+                        if (this.animationPiece) {
+                            this.animationPiece.remove();
+                            this.animationPiece = null;
+                        }
+                        this.isAnimating = false;
+                        this.isLocalPlacing = false;
+
+                        // 直接使用新棋盘数据，避免残留
+                        this.board = JSON.parse(JSON.stringify(data.room_state.board));
+                        this.currentTurn = data.room_state.current_turn;
+                        this.gameStatus = 'playing';
+                        this.winner = null;
+                        this.lastMove = null;
+                        this.updateRoomState(data.room_state);
+                        break;
                     case 'player_disconnected':
                         this.updateRoomState(data.room_state)
                         break
@@ -793,7 +817,7 @@
             },
 
             shareGame() {
-				const shareUrl = `https://yourdomain.com/?room=${this.roomId}`
+                const shareUrl = `https://yourdomain.com/#/?room=${this.roomId}`;
                 const shareTitle = '重力四子棋 - 快来挑战我吧！'
                 const shareDesc = `房间号：${this.roomId}，点击加入游戏！`
 
